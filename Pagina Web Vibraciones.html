@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard de Telemetría y Análisis de Vibraciones - Bomba Hidráulica</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Chart.js para Gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              900: '#0c4a6e',
+            },
+            darkbg: '#0f172a',
+            darkcard: '#1e293b',
+            darkborder: '#334155'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Estilos de barra de desplazamiento personalizada */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    
+    /* Colores para resaltado de sintaxis JSON */
+    .json-key { color: #38bdf8; font-weight: 600; }
+    .json-string { color: #4ade80; }
+    .json-number { color: #facc15; }
+    .json-boolean { color: #f472b6; }
+    .json-null { color: #94a3b8; }
+  </style>
+</head>
+<body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- ================================================================= -->
+  <!-- ENCABEZADO / NAVBAR (Modifica aquí el título principal de la web) -->
+  <!-- ================================================================= -->
+  <header class="bg-darkcard border-b border-darkborder sticky top-0 z-30 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- LOGO Y TÍTULOS VISIBLES -->
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-brand-500/20 text-brand-500 rounded-xl border border-brand-500/30">
+          <i class="fa-solid fa-gauge-high text-2xl"></i>
+        </div>
+        <div>
+          <!-- Puedes modificar este título según tu proyecto -->
+          <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            Análisis de Vibraciones & Telemetría IA
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
+              Motor 110V
+            </span>
+          </h1>
+          <!-- Subtítulo modificable -->
+          <p class="text-xs text-slate-400">
+            Equipo: <span class="text-slate-200 font-mono" id="label-equipo-id">MOTOR_BOMBA_110V_01</span> | Monitoreo Predictivo en Tiempo Real
+          </p>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN (Carga de JSON y Exportación) -->
+      <div class="flex items-center gap-2">
+        <label for="json-file-input" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-darkborder rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer">
+          <i class="fa-solid fa-file-import text-brand-400"></i> Cargar JSON
+        </label>
+        <input type="file" id="json-file-input" accept=".json" class="hidden" onchange="handleFileUpload(event)" />
+
+        <button onclick="exportCurrentJSON()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition shadow-md">
+          <i class="fa-solid fa-download"></i> Exportar JSON
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================================================================= -->
+  <!-- CONTENIDO PRINCIPAL DEL DASHBOARD -->
+  <!-- ================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- SECCIÓN 1: Tarjeta de Resumen General & Indicadores KPI -->
+    <section class="bg-darkcard p-5 rounded-xl border border-darkborder shadow-md">
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-darkborder pb-4 mb-4">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-brand-400"></i> Resumen de Indicadores Clave (KPIs)
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Diagnóstico calculado a partir de la firma base y lecturas del equipo</p>
+        </div>
+        <!-- Inserción dinámica del estado operativo general (En Rango / Fuera de Rango) -->
+        <div id="global-status-badge"></div>
+      </div>
+
+      <!-- CUADRÍCULA DE TARJETAS INFORMATIVAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        
+        <!-- KPI 1: Velocidad (RPM) -->
+        <div class="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-slate-400 font-medium">Velocidad Medida</span>
+            <p class="text-xl font-bold text-white mt-1" id="kpi-rpm">-- RPM</p>
+          </div>
+          <div class="mt-2 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 space-y-0.5">
+            <p>Línea Base: <span class="text-slate-200" id="kpi-rpm-base">--</span></p>
+            <p>Desviación: <span class="text-slate-200" id="kpi-rpm-dev">--</span></p>
+            <p>Rango Mín-Máx: <span class="text-slate-200" id="kpi-rpm-range">--</span></p>
+          </div>
+        </div>
+
+        <!-- KPI 2: Temperatura -->
+        <div class="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-slate-400 font-medium">Temperatura Promedio</span>
+            <p class="text-xl font-bold text-amber-400 mt-1" id="kpi-temp">-- °C</p>
+          </div>
+          <div class="mt-2 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 space-y-0.5">
+            <p>Desv. Estándar: <span class="text-slate-200" id="kpi-temp-std">--</span></p>
+            <p>Rango Térmico: <span class="text-slate-200" id="kpi-temp-range">--</span></p>
+            <p>Estado Térmico: <span class="text-emerald-400 font-medium">Normal</span></p>
+          </div>
+        </div>
+
+        <!-- KPI 3: Vibración RMS -->
+        <div class="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-slate-400 font-medium">Vibración Global (RMS)</span>
+            <p class="text-xl font-bold text-purple-400 mt-1" id="kpi-rms">-- m/s²</p>
+          </div>
+          <div class="mt-2 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 space-y-0.5">
+            <p>Sensor: <span class="text-slate-200">Acelerómetro Triaxial</span></p>
+            <p>Aceleración: <span class="text-slate-200">m/s²</span></p>
+            <p>Nivel Alerta: <span class="text-emerald-400 font-medium">En Límite Seguro</span></p>
+          </div>
+        </div>
+
+        <!-- KPI 4: Firma Espectral -->
+        <div class="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-slate-400 font-medium">Firma de Frecuencias</span>
+            <p class="text-sm font-bold text-emerald-400 mt-1" id="kpi-freq-status">Sin desviación</p>
+          </div>
+          <div class="mt-2 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 space-y-0.5">
+            <p>Esperada: <span class="text-slate-200 font-mono" id="kpi-freq-expected">--</span></p>
+            <p>Medida: <span class="text-slate-200 font-mono" id="kpi-freq-measured">--</span></p>
+            <p>Diferencias: <span class="text-slate-200 font-mono" id="kpi-freq-diffs">--</span></p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECCIÓN 2: Gráfico de Frecuencias Espectrales y Prompt de Agente GEM -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- CONTENEDOR DEL GRÁFICO BAR CHART -->
+      <div class="lg:col-span-2 bg-darkcard p-5 rounded-xl border border-darkborder shadow-md">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-column text-brand-400"></i> Comparativa Espectral: Frecuencia Esperada vs Medida (Hz)
+          </h3>
+          <span class="text-xs text-slate-400">Armónicos 1X, 2X, 3X</span>
+        </div>
+        <div class="h-64 relative">
+          <canvas id="frequencyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- CONTENEDOR DEL PROMPT GEM PARA IA -->
+      <div class="bg-darkcard p-5 rounded-xl border border-darkborder shadow-md flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-robot text-emerald-400"></i> Entrada para Agente GEM (IA)
+            </h3>
+            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-darkborder">JSON Puro</span>
+          </div>
+          <p class="text-xs text-slate-400 mb-2">Estructura limpia para evitar alucinaciones en el modelo LLM:</p>
+          <pre id="gem-prompt-box" class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 max-h-48 overflow-y-auto leading-relaxed select-all"></pre>
+        </div>
+        
+        <button onclick="copyGemPrompt()" id="btn-copy-prompt" class="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 border border-darkborder text-slate-200 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-copy"></i> Copiar Entrada para Agente GEM
+        </button>
+      </div>
+
+    </section>
+
+    <!-- SECCIÓN 3: Tabla de Escenarios y Registros Analizados -->
+    <section class="bg-darkcard rounded-xl border border-darkborder shadow-md overflow-hidden">
+      <div class="p-4 border-b border-darkborder bg-slate-800/40 flex flex-wrap items-center justify-between gap-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-brand-400"></i> Desglose de Escenarios Analizados
+        </h3>
+        <span class="text-xs text-slate-400">
+          Registros Representados: <strong class="text-white" id="json-total-reg">0</strong>
+        </span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-800/80 text-slate-400 uppercase font-medium tracking-wider border-b border-darkborder">
+            <tr>
+              <th class="py-3 px-4">Escenario / Bloque</th>
+              <th class="py-3 px-4">RPM Medida</th>
+              <th class="py-3 px-4">Rango RPM (Mín-Máx)</th>
+              <th class="py-3 px-4">Temp (°C)</th>
+              <th class="py-3 px-4">RMS Vib (m/s²)</th>
+              <th class="py-3 px-4">Frecuencias (Hz)</th>
+              <th class="py-3 px-4 text-center">Estado Operativo</th>
+              <th class="py-3 px-4 text-right">Ver JSON</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-darkborder font-mono">
+            <!-- Filas dinámicas generadas desde JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- PIE DE PÁGINA / FOOTER (Puedes modificar los créditos aquí) -->
+  <!-- ================================================================= -->
+  <footer class="bg-darkcard border-t border-darkborder py-4 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+      <p>Proyecto de Monitoreo Operativo y Análisis de Vibraciones con IA &copy; 2026 - Ingeniería Mecánica</p>
+    </div>
+  </footer>
+
+  <!-- MODAL: VISOR DE CÓDIGO JSON -->
+  <div id="modal-json" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-darkcard border border-darkborder w-full max-w-3xl rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="p-4 border-b border-darkborder flex items-center justify-between bg-slate-800/50">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-code text-brand-400"></i>
+          <h3 class="text-sm font-bold text-white" id="modal-title">Detalle de Estructura JSON</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="copyModalJSON()" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-copy"></i> Copiar
+          </button>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-white px-2 py-1 text-lg">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-y-auto flex-1 font-mono text-xs bg-slate-950 text-slate-200">
+        <pre id="modal-json-content" class="p-3 bg-slate-900 border border-slate-800 rounded-lg overflow-x-auto text-xs leading-relaxed"></pre>
+      </div>
+
+      <div class="p-3 border-t border-darkborder bg-slate-900/60 flex justify-between items-center text-xs text-slate-400">
+        <span id="modal-status-badge"></span>
+        <button onclick="closeModal()" class="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded transition">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICACIÓN TOAST FLOTANTE -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-brand-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="toast-message">Acción realizada con éxito</span>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- LÓGICA JAVASCRIPT Y MANEJO DE DATOS -->
+  <!-- ================================================================= -->
+  <script>
+    // -----------------------------------------------------------------
+    // DATOS DE ENTRADA PREDETERMINADOS (Datos_Vibraciones.json)
+    // Puedes actualizar este objeto o sustituirlo desde la interfaz web
+    // -----------------------------------------------------------------
+    let defaultJSONData = {
+      "estado_operativo": "En Rango",
+      "total_registros": 279,
+      "analisis_rpm": {
+        "rpm_medida": 3457.7,
+        "rpm_desviacion_estandar": 230.02,
+        "rpm_min": 699.0,
+        "rpm_max": 3492.0,
+        "rpm_linea_base_promedio": 3457.7,
+        "desviacion_porcentual": 0.0,
+        "alerta_rpm": false
+      },
+      "analisis_temperatura": {
+        "temperatura_promedio": 66.0,
+        "temperatura_desviacion_estandar": 5.99,
+        "temperatura_min": 57.0,
+        "temperatura_max": 75.1
+      },
+      "analisis_vibracion": {
+        "rms_vibracion_m_s2": 348.7429
+      },
+      "analisis_frecuencia": {
+        "firma_esperada_hz": [57.6, 115.3, 172.9],
+        "frecuencias_medidas_hz": [57.6, 115.3, 172.9],
+        "diferencias_hz": [0.0, 0.0, 0.0],
+        "alerta_frecuencia": false
+      },
+      "resumen_analitico": "RPM promedio: 3457.7. Temperatura: 66.0°C. RMS vibración: 348.7429 m/s². Operación normal.",
+      "analisis_por_escenario": {
+        "Alerta_Vibracion": {
+          "estado_operativo": "En Rango",
+          "analisis_rpm": {
+            "rpm_medida": 3457.7,
+            "rpm_desviacion_estandar": 230.02,
+            "rpm_min": 699.0,
+            "rpm_max": 3492.0,
+            "rpm_linea_base_promedio": 3457.7,
+            "desviacion_porcentual": 0.0,
+            "alerta_rpm": false
+          },
+          "analisis_temperatura": {
+            "temperatura_promedio": 66.0,
+            "temperatura_desviacion_estandar": 5.99,
+            "temperatura_min": 57.0,
+            "temperatura_max": 75.1
+          },
+          "analisis_vibracion": {
+            "rms_vibracion_m_s2": 348.7429
+          },
+          "analisis_frecuencia": {
+            "firma_esperada_hz": [57.6, 115.3, 172.9],
+            "frecuencias_medidas_hz": [57.6, 115.3, 172.9],
+            "diferencias_hz": [0.0, 0.0, 0.0],
+            "alerta_frecuencia": false
+          },
+          "resumen_analitico": "RPM promedio: 3457.7. Temperatura: 66.0°C. RMS vibración: 348.7429 m/s². Operación normal."
+        }
+      }
+    };
+
+    let activeData = defaultJSONData;
+    let frequencyChartInstance = null;
+    let selectedModalObject = null;
+
+    // Carga e renderiza todos los elementos visuales a partir del objeto JSON
+    function renderDashboard(jsonObj) {
+      activeData = jsonObj;
+
+      // 1. Estado Operativo General Badge
+      const statusBadgeContainer = document.getElementById('global-status-badge');
+      const isEnRango = jsonObj.estado_operativo === 'En Rango';
+      statusBadgeContainer.innerHTML = isEnRango
+        ? `<span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold rounded-full text-xs flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> OPERACIÓN: EN RANGO</span>`
+        : `<span class="px-3 py-1 bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold rounded-full text-xs flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> OPERACIÓN: FUERA DE RANGO</span>`;
+
+      // 2. Conteo de registros
+      document.getElementById('json-total-reg').innerText = jsonObj.total_registros || 279;
+
+      // 3. Métricas KPI de RPM
+      if (jsonObj.analisis_rpm) {
+        document.getElementById('kpi-rpm').innerText = `${jsonObj.analisis_rpm.rpm_medida} RPM`;
+        document.getElementById('kpi-rpm-base').innerText = `${jsonObj.analisis_rpm.rpm_linea_base_promedio ?? '-'} RPM`;
+        document.getElementById('kpi-rpm-dev').innerText = `${jsonObj.analisis_rpm.desviacion_porcentual ?? '0'}%`;
+        document.getElementById('kpi-rpm-range').innerText = `${jsonObj.analisis_rpm.rpm_min} - ${jsonObj.analisis_rpm.rpm_max}`;
+      }
+
+      // 4. Métricas KPI de Temperatura
+      if (jsonObj.analisis_temperatura) {
+        document.getElementById('kpi-temp').innerText = `${jsonObj.analisis_temperatura.temperatura_promedio} °C`;
+        document.getElementById('kpi-temp-std').innerText = `${jsonObj.analisis_temperatura.temperatura_desviacion_estandar || '0.0'} °C`;
+        document.getElementById('kpi-temp-range').innerText = `${jsonObj.analisis_temperatura.temperatura_min}°C - ${jsonObj.analisis_temperatura.temperatura_max}°C`;
+      }
+
+      // 5. Métricas KPI de Vibración RMS
+      if (jsonObj.analisis_vibracion) {
+        document.getElementById('kpi-rms').innerText = `${jsonObj.analisis_vibracion.rms_vibracion_m_s2} m/s²`;
+      }
+
+      // 6. Métricas KPI de Frecuencia
+      if (jsonObj.analisis_frecuencia) {
+        const expected = jsonObj.analisis_frecuencia.firma_esperada_hz || [];
+        const measured = jsonObj.analisis_frecuencia.frecuencias_medidas_hz || [];
+        const diffs = jsonObj.analisis_frecuencia.diferencias_hz || [];
+
+        document.getElementById('kpi-freq-expected').innerText = `[${expected.join(', ')}] Hz`;
+        document.getElementById('kpi-freq-measured').innerText = `[${measured.join(', ')}] Hz`;
+        document.getElementById('kpi-freq-diffs').innerText = `[${diffs.join(', ')}] Hz`;
+
+        const hasAlert = jsonObj.analisis_frecuencia.alerta_frecuencia;
+        const maxDiff = Math.max(...diffs, 0);
+
+        if (hasAlert || maxDiff > 0) {
+          document.getElementById('kpi-freq-status').innerText = `Desviación Máx: ${maxDiff} Hz`;
+          document.getElementById('kpi-freq-status').className = 'text-sm font-bold text-rose-400 mt-1';
+        } else {
+          document.getElementById('kpi-freq-status').innerText = 'Sin desviación (0.0 Hz)';
+          document.getElementById('kpi-freq-status').className = 'text-sm font-bold text-emerald-400 mt-1';
+        }
+      }
+
+      // 7. Renderizar Prompt Box para Gemini/GEM
+      document.getElementById('gem-prompt-box').innerText = JSON.stringify(jsonObj, null, 2);
+
+      // 8. Renderizar Gráfico y Tabla
+      renderFrequencyChart(jsonObj);
+      renderTableScenarios(jsonObj);
+    }
+
+    // Dibuja el gráfico de comparación de frecuencias
+    function renderFrequencyChart(jsonObj) {
+      const ctx = document.getElementById('frequencyChart').getContext('2d');
+      const expected = jsonObj.analisis_frecuencia?.firma_esperada_hz || [57.6, 115.3, 172.9];
+      const measured = jsonObj.analisis_frecuencia?.frecuencias_medidas_hz || [57.6, 115.3, 172.9];
+
+      if (frequencyChartInstance) {
+        frequencyChartInstance.destroy();
+      }
+
+      frequencyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Armónico 1X', 'Armónico 2X', 'Armónico 3X'],
+          datasets: [
+            {
+              label: 'Firma Esperada (Hz)',
+              data: expected,
+              backgroundColor: 'rgba(2, 132, 199, 0.85)',
+              borderColor: '#0284c7',
+              borderWidth: 1.5,
+              borderRadius: 6
+            },
+            {
+              label: 'Frecuencia Medida (Hz)',
+              data: measured,
+              backgroundColor: 'rgba(16, 185, 129, 0.85)',
+              borderColor: '#10b981',
+              borderWidth: 1.5,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', font: { size: 11, family: 'sans-serif' } } }
+          },
+          scales: {
+            x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Frecuencia (Hz)', color: '#64748b' } }
+          }
+        }
+      });
+    }
+
+    // Genera las filas de la tabla de escenarios analizados
+    function renderTableScenarios(jsonObj) {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+
+      // 1. Lectura principal
+      const mainRow = createTableRow('Lectura Principal (Línea Base)', jsonObj);
+      tbody.appendChild(mainRow);
+
+      // 2. Escenarios adicionales (si existen)
+      if (jsonObj.analisis_por_escenario) {
+        Object.entries(jsonObj.analisis_por_escenario).forEach(([key, scObj]) => {
+          const scRow = createTableRow(`Escenario: ${key}`, scObj);
+          tbody.appendChild(scRow);
+        });
+      }
+    }
+
+    // Crea un elemento <tr> formateado
+    function createTableRow(title, dataObj) {
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-800/40 transition border-b border-darkborder/50";
+
+      const isEnRango = dataObj.estado_operativo === 'En Rango';
+      const statusBadge = isEnRango
+        ? `<span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-semibold"><i class="fa-solid fa-check"></i> En Rango</span>`
+        : `<span class="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-full text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> Fuera de Rango</span>`;
+
+      const rpm = dataObj.analisis_rpm?.rpm_medida ?? 'N/A';
+      const rpmMinMax = `${dataObj.analisis_rpm?.rpm_min ?? '-'} - ${dataObj.analisis_rpm?.rpm_max ?? '-'}`;
+      const temp = dataObj.analisis_temperatura?.temperatura_promedio ?? 'N/A';
+      const rms = dataObj.analisis_vibracion?.rms_vibracion_m_s2 ?? 'N/A';
+      const freqs = dataObj.analisis_frecuencia?.frecuencias_medidas_hz ? `[${dataObj.analisis_frecuencia.frecuencias_medidas_hz.join(', ')}]` : 'N/A';
+
+      tr.innerHTML = `
+        <td class="py-3 px-4 font-semibold text-slate-200">${title}</td>
+        <td class="py-3 px-4 text-slate-200">${rpm} RPM</td>
+        <td class="py-3 px-4 text-slate-400">${rpmMinMax}</td>
+        <td class="py-3 px-4 text-amber-400">${temp} °C</td>
+        <td class="py-3 px-4 text-purple-400 font-semibold">${rms}</td>
+        <td class="py-3 px-4 text-slate-300">${freqs}</td>
+        <td class="py-3 px-4 text-center">${statusBadge}</td>
+        <td class="py-3 px-4 text-right">
+          <button onclick="openModalWithJSON('${encodeURIComponent(JSON.stringify(dataObj))}', '${title}')" class="px-2.5 py-1 bg-slate-800 hover:bg-brand-600 text-brand-400 hover:text-white rounded border border-darkborder transition text-[11px]">
+            <i class="fa-solid fa-code"></i> JSON
+          </button>
+        </td>
+      `;
+
+      return tr;
+    }
+
+    // Funciones de Modal y Visor de Código JSON
+    function openModalWithJSON(encodedJSON, title) {
+      const obj = JSON.parse(decodeURIComponent(encodedJSON));
+      selectedModalObject = obj;
+      document.getElementById('modal-title').innerText = `Estructura JSON: ${title}`;
+      
+      const isNormal = obj.estado_operativo === 'En Rango';
+      document.getElementById('modal-status-badge').innerHTML = isNormal
+        ? `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check"></i> Estado: En Rango</span>`
+        : `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> Estado: Fuera de Rango</span>`;
+
+      const formattedStr = syntaxHighlightJSON(JSON.stringify(obj, null, 2));
+      document.getElementById('modal-json-content').innerHTML = formattedStr;
+      document.getElementById('modal-json').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-json').classList.add('hidden');
+    }
+
+    // Coloreado sintáctico de sintaxis JSON en HTML
+    function syntaxHighlightJSON(json) {
+      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string';
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      });
+    }
+
+    // Copia al portapapeles
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+    }
+
+    function copyModalJSON() {
+      if (!selectedModalObject) return;
+      copyTextToClipboard(JSON.stringify(selectedModalObject, null, 2));
+      showToast("¡JSON copiado al portapapeles!");
+    }
+
+    function copyGemPrompt() {
+      copyTextToClipboard(JSON.stringify(activeData, null, 2));
+      showToast("¡Entrada para Agente GEM copiada!");
+    }
+
+    // Exportar el JSON activo como archivo descargable
+    function exportCurrentJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activeData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "Datos_Vibraciones_Procesado.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("Archivo JSON exportado correctamente");
+    }
+
+    // Manejador de carga de archivos subidos por el usuario
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsedJSON = JSON.parse(e.target.result);
+          renderDashboard(parsedJSON);
+          showToast(`Archivo "${file.name}" cargado exitosamente`);
+        } catch (err) {
+          alert("Error al leer el archivo JSON: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Muestra una notificación emergente estilo Toast
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-message').innerText = message;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    // Inicialización automática cuando el DOM esté totalmente cargado
+    window.addEventListener('DOMContentLoaded', () => {
+      renderDashboard(defaultJSONData);
+    });
+  </script>
+
+</body>
+</html>
