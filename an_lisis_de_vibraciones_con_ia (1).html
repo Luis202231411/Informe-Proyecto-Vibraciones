@@ -1,0 +1,513 @@
+<!DOCTYPE html> <!-- Declara el tipo de documento como HTML5 para compatibilidad y renderizado estándar en navegadores -->
+<html lang="es"> <!-- Establece el idioma principal de la página web en español -->
+<head> <!-- Inicio de la sección de metadatos, recursos externos y configuración del documento -->
+  <meta charset="UTF-8"> <!-- Define la codificación de caracteres en UTF-8 para admitir acentos y símbolos -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Configura la vista responsive adaptada a dispositivos móviles -->
+  <title>Análisis de Vibraciones con Inteligencia Artificial</title> <!-- Título visible en la pestaña del navegador -->
+  
+  <!-- Carga de Tailwind CSS desde CDN para estilos responsivos y utilidad de diseño industrial -->
+  <script src="https://cdn.tailwindcss.com"></script> <!-- Librería Tailwind CSS -->
+  
+  <!-- Carga de Mammoth.js desde CDN para parsear archivos .docx directamente en JavaScript -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script> <!-- Librería Mammoth.js -->
+  
+  <!-- Carga de Chart.js desde CDN para renderizar la gráfica de barras comparativa -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Librería Chart.js -->
+  
+  <!-- Carga de iconos Lucide desde CDN para mejorar la apariencia de la interfaz -->
+  <script src="https://unpkg.com/lucide@latest"></script> <!-- Librería Lucide Icons -->
+
+  <style> /* Inicio de estilos CSS personalizados adicionales */
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; } /* Aplica la fuente Inter o del sistema para mejor legibilidad */
+    
+    .kpi-card { transition: all 0.3s ease; } /* Animación suave para transiciones de hover en tarjetas KPI */
+    .kpi-card:hover { transform: translateY(-2px); } /* Elevación sutil al pasar el cursor sobre las tarjetas */
+    
+    tr.selected-row { background-color: #eff6ff !important; border-left: 4px solid #2563eb; } /* Estilo visual distintivo para la fila seleccionada */
+    
+    /* Personalización de la barra de desplazamiento horizontal para la tabla */
+    ::-webkit-scrollbar { height: 8px; width: 8px; } /* Define el tamaño de la barra de scroll */
+    ::-webkit-scrollbar-track { background: #f1f5f9; } /* Color de fondo de la barra de scroll */
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } /* Color e inclinación del cursor de scroll */
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; } /* Color del cursor de scroll al pasar el cursor */
+  </style> <!-- Fin de estilos CSS personalizados -->
+</head> <!-- Fin de la sección de encabezado del documento -->
+
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8"> <!-- Cuerpo principal con tema oscuro industrial -->
+  <div class="max-w-7xl mx-auto space-y-6"> <!-- Contenedor principal centrado con ancho máximo y espaciado vertical -->
+    
+    <!-- Encabezado principal de la aplicación -->
+    <header class="bg-slate-800/80 backdrop-blur border border-slate-700/60 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4"> <!-- Estructura flexible del encabezado -->
+      <div> <!-- Contenedor del título y subtítulo -->
+        <h1 class="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3"> <!-- Título principal del frontend -->
+          <i data-lucide="activity" class="text-blue-500 w-8 h-8"></i> <!-- Icono decorativo de actividad/vibración -->
+          <span>Análisis de Vibraciones con Inteligencia Artificial</span> <!-- Texto del título -->
+        </h1> <!-- Fin del título principal -->
+        <p class="text-slate-400 font-medium text-sm md:text-base mt-1 flex items-center gap-2"> <!-- Subtítulo del frontend -->
+          <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i> <!-- Icono decorativo de hardware -->
+          <span>Equipo: Bomba Hidráulica 110V | Monitoreo para un mantenimiento Predictivo</span> <!-- Texto del subtítulo -->
+        </p> <!-- Fin del subtítulo -->
+      </div> <!-- Fin del contenedor de texto del encabezado -->
+
+      <!-- Botón e Input para importar el informe .docx -->
+      <div class="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3"> <!-- Contenedor del botón de carga -->
+        <input type="file" id="docxInput" accept=".docx" class="hidden" onchange="procesarArchivoDocx(event)"> <!-- Input HTML de archivo oculto para filtrar .docx -->
+        <button onclick="document.getElementById('docxInput').click()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold px-5 py-3 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2 border border-blue-400/30"> <!-- Botón visible para lanzar la importación -->
+          <i data-lucide="upload-cloud" class="w-5 h-5"></i> <!-- Icono de carga en la nube -->
+          <span>Importar Informe (.docx)</span> <!-- Texto del botón -->
+        </button> <!-- Fin del botón de importación -->
+      </div> <!-- Fin del contenedor del botón de importación -->
+    </header> <!-- Fin del encabezado de la aplicación -->
+
+    <!-- Notificación sobre el estado inicial sin datos cargados -->
+    <div id="bannerEstadoVacio" class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center gap-3 text-amber-200"> <!-- Alerta visual de bienvenida -->
+      <i data-lucide="alert-circle" class="w-6 h-6 shrink-0 text-amber-400"></i> <!-- Icono de advertencia informativa -->
+      <p class="text-sm md:text-base"> <!-- Mensaje explicativo del estado en blanco -->
+        El sistema está en espera de datos. Por favor, haga clic en <strong>"Importar Informe (.docx)"</strong> para subir el documento y comenzar la visualización de los datos de la bomba hidráulica.
+      </p> <!-- Fin del texto de alerta -->
+    </div> <!-- Fin de la alerta de estado inicial -->
+
+    <!-- Panel de Indicadores KPI y Gráfica Comparativa -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6"> <!-- Cuadrícula de 3 columnas para KPI y Gráfica -->
+      
+      <!-- Sección de Resumen de Indicadores Clave (4 tarjetas KPI) -->
+      <div class="lg:col-span-1 space-y-4 flex flex-col justify-between"> <!-- Columna izquierda para KPIs -->
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-xl h-full flex flex-col justify-between"> <!-- Contenedor del grupo KPI -->
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700/50 pb-3"> <!-- Encabezado de sección KPI -->
+            <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2"> <!-- Título de sección KPI -->
+              <i data-lucide="gauge" class="text-blue-400 w-5 h-5"></i> <!-- Icono de medidor -->
+              <span>Resumen de Indicadores Clave</span> <!-- Texto del título -->
+            </h2> <!-- Fin del título KPI -->
+            <span id="badgeFilaSeleccionada" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-700 text-slate-400">Sin Selección</span> <!-- Indicador de fila seleccionada -->
+          </div> <!-- Fin del encabezado de sección KPI -->
+
+          <!-- Cuadrícula interna de 2x2 para las tarjetas de parámetros -->
+          <div class="grid grid-cols-2 gap-3 my-auto"> <!-- Grilla de 2 columnas para parámetros -->
+            
+            <!-- Tarjeta KPI 1: Velocidad RPM -->
+            <div class="kpi-card bg-slate-900/60 border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between"> <!-- Tarjeta individual -->
+              <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5"> <!-- Etiqueta de la tarjeta -->
+                <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-sky-400"></i> <!-- Icono de rotación -->
+                <span>Velocidad RPM</span> <!-- Nombre del parámetro -->
+              </span> <!-- Fin de la etiqueta -->
+              <div class="mt-2"> <!-- Contenedor del valor numérico -->
+                <span id="kpiVelocidad" class="text-xl md:text-2xl font-black text-slate-500">--</span> <!-- Valor dinámico en blanco por defecto -->
+                <span class="text-xs text-slate-400 ml-1">RPM</span> <!-- Unidad de medida -->
+              </div> <!-- Fin del contenedor del valor -->
+            </div> <!-- Fin de Tarjeta KPI 1 -->
+
+            <!-- Tarjeta KPI 2: Temperatura -->
+            <div class="kpi-card bg-slate-900/60 border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between"> <!-- Tarjeta individual -->
+              <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5"> <!-- Etiqueta de la tarjeta -->
+                <i data-lucide="thermometer" class="w-3.5 h-3.5 text-amber-400"></i> <!-- Icono de termómetro -->
+                <span>Temperatura</span> <!-- Nombre del parámetro -->
+              </span> <!-- Fin de la etiqueta -->
+              <div class="mt-2"> <!-- Contenedor del valor numérico -->
+                <span id="kpiTemperatura" class="text-xl md:text-2xl font-black text-slate-500">--</span> <!-- Valor dinámico en blanco por defecto -->
+                <span class="text-xs text-slate-400 ml-1">°C</span> <!-- Unidad de medida -->
+              </div> <!-- Fin del contenedor del valor -->
+            </div> <!-- Fin de Tarjeta KPI 2 -->
+
+            <!-- Tarjeta KPI 3: Vibración -->
+            <div class="kpi-card bg-slate-900/60 border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between"> <!-- Tarjeta individual -->
+              <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5"> <!-- Etiqueta de la tarjeta -->
+                <i data-lucide="activity" class="w-3.5 h-3.5 text-rose-400"></i> <!-- Icono de onda de vibración -->
+                <span>Vibración RMS</span> <!-- Nombre del parámetro -->
+              </span> <!-- Fin de la etiqueta -->
+              <div class="mt-2"> <!-- Contenedor del valor numérico -->
+                <span id="kpiVibracion" class="text-xl md:text-2xl font-black text-slate-500">--</span> <!-- Valor dinámico en blanco por defecto -->
+                <span class="text-xs text-slate-400 ml-1">m/s²</span> <!-- Unidad de medida -->
+              </div> <!-- Fin del contenedor del valor -->
+            </div> <!-- Fin de Tarjeta KPI 3 -->
+
+            <!-- Tarjeta KPI 4: Frecuencia -->
+            <div class="kpi-card bg-slate-900/60 border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between"> <!-- Tarjeta individual -->
+              <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5"> <!-- Etiqueta de la tarjeta -->
+                <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-400"></i> <!-- Icono de señal de frecuencia -->
+                <span>Frecuencia</span> <!-- Nombre del parámetro -->
+              </span> <!-- Fin de la etiqueta -->
+              <div class="mt-2"> <!-- Contenedor del valor numérico -->
+                <span id="kpiFrecuencia" class="text-xl md:text-2xl font-black text-slate-500">--</span> <!-- Valor dinámico en blanco por defecto -->
+                <span class="text-xs text-slate-400 ml-1">Hz</span> <!-- Unidad de medida -->
+              </div> <!-- Fin del contenedor del valor -->
+            </div> <!-- Fin de Tarjeta KPI 4 -->
+
+          </div> <!-- Fin de la grilla de tarjetas KPI -->
+
+          <p id="kpiHelpText" class="text-xs text-slate-500 italic mt-4 text-center"> <!-- Texto de instrucción cuando no hay datos seleccionados -->
+            Seleccione una fila de la tabla para visualizar los datos del parámetro.
+          </p> <!-- Fin del texto de instrucción -->
+        </div> <!-- Fin del contenedor del grupo KPI -->
+      </div> <!-- Fin de la columna izquierda de KPIs -->
+
+      <!-- Sección de la Gráfica de Barras Comparativa -->
+      <div class="lg:col-span-2"> <!-- Columna derecha que ocupa 2 espacios en pantallas grandes -->
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-xl h-full flex flex-col"> <!-- Contenedor principal del gráfico -->
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700/50 pb-3"> <!-- Encabezado de la sección de gráfica -->
+            <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2"> <!-- Título del gráfico -->
+              <i data-lucide="bar-chart-3" class="text-blue-400 w-5 h-5"></i> <!-- Icono de gráfico de barras -->
+              <span>Comparativa: Valor Medido vs Límite ISO 10816-7</span> <!-- Texto descriptivo del gráfico -->
+            </h2> <!-- Fin del título del gráfico -->
+            <span class="text-xs text-slate-400 bg-slate-900/60 border border-slate-700/50 px-2.5 py-1 rounded-lg">Medición en Tiempo Real</span> <!-- Etiqueta decorativa -->
+          </div> <!-- Fin del encabezado de la sección de gráfica -->
+
+          <!-- Canvas para renderizar la gráfica mediante Chart.js -->
+          <div class="relative flex-1 min-h-[280px] w-full flex items-center justify-center"> <!-- Contenedor adaptativo del Canvas -->
+            <canvas id="graficaComparativaCanvas"></canvas> <!-- Elemento Canvas HTML5 para Chart.js -->
+            
+            <!-- Mensaje superpuesto cuando la gráfica está en blanco/vacía -->
+            <div id="overlayGraficaVacia" class="absolute inset-0 bg-slate-900/80 rounded-xl flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm transition-opacity duration-300"> <!-- Capa de bloqueo previa a la selección -->
+              <i data-lucide="bar-chart-2" class="w-12 h-12 text-slate-600 mb-2"></i> <!-- Icono de estado sin datos -->
+              <p class="text-slate-400 font-medium">Gráfica en Espera de Selección</p> <!-- Titular del estado vacío -->
+              <p class="text-xs text-slate-500 mt-1 max-w-xs">Cargue un informe .docx y haga clic en un registro de la tabla para comparar con la norma ISO 10816-7.</p> <!-- Instrucciones para activar la gráfica -->
+            </div> <!-- Fin de la capa de bloqueo -->
+          </div> <!-- Fin del contenedor del Canvas -->
+        </div> <!-- Fin del contenedor principal del gráfico -->
+      </div> <!-- Fin de la columna derecha de gráfica -->
+
+    </div> <!-- Fin de la cuadrícula de KPIs y Gráfica -->
+
+    <!-- Sección de Tabla Interactiva de Datos -->
+    <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-xl"> <!-- Contenedor principal de la tabla -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b border-slate-700/50"> <!-- Encabezado de la sección de la tabla -->
+        <div> <!-- Grupo de títulos -->
+          <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2"> <!-- Título de la tabla -->
+            <i data-lucide="table" class="text-blue-400 w-5 h-5"></i> <!-- Icono de tabla de datos -->
+            <span>Registros del Informe Técnico de Vibraciones</span> <!-- Texto del título -->
+          </h2> <!-- Fin del título de la tabla -->
+          <p class="text-xs text-slate-400 mt-0.5">Haga clic sobre cualquier fila para cargar sus indicadores y actualizar la gráfica comparativa.</p> <!-- Instrucciones de la tabla -->
+        </div> <!-- Fin del grupo de títulos -->
+        
+        <div id="contadorRegistros" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/80 text-slate-400 border border-slate-700/50"> <!-- Contador dinámico de filas cargadas -->
+          0 registros cargados <!-- Texto por defecto -->
+        </div> <!-- Fin del contador de registros -->
+      </div> <!-- Fin del encabezado de la sección de la tabla -->
+
+      <!-- Tabla HTML5 adaptable dentro de un contenedor scrollable -->
+      <div class="overflow-x-auto rounded-xl border border-slate-700/50"> <!-- Scroll horizontal dinámico -->
+        <table class="w-full text-left text-sm text-slate-300"> <!-- Estructura de la tabla -->
+          <thead class="bg-slate-900/80 text-slate-400 uppercase text-xs tracking-wider border-b border-slate-700"> <!-- Encabezado con nombres de columnas -->
+            <tr> <!-- Fila de encabezados -->
+              <th scope="col" class="py-3.5 px-4 font-bold">No. dato</th> <!-- Columna No. dato -->
+              <th scope="col" class="py-3.5 px-4 font-bold">Velocidad RPM</th> <!-- Columna Velocidad RPM -->
+              <th scope="col" class="py-3.5 px-4 font-bold">Temperatura</th> <!-- Columna Temperatura -->
+              <th scope="col" class="py-3.5 px-4 font-bold">Vibración (m/s²)</th> <!-- Columna Vibración -->
+              <th scope="col" class="py-3.5 px-4 font-bold">Frecuencia</th> <!-- Columna Frecuencia -->
+              <th scope="col" class="py-3.5 px-4 font-bold">Zona Evaluada</th> <!-- Columna Zona evaluada -->
+            </tr> <!-- Fin de la fila de encabezados -->
+          </thead> <!-- Fin del encabezado de tabla -->
+          
+          <tbody id="tablaCuerpo" class="divide-y divide-slate-700/50 bg-slate-800/40"> <!-- Cuerpo dinámico de la tabla (en blanco inicialmente) -->
+            <!-- Fila en blanco por defecto mientras no se importe el informe -->
+            <tr id="filaVaciaInicial"> <!-- Fila de estado vacío por defecto -->
+              <td colspan="6" class="py-12 text-center text-slate-500 italic"> <!-- Celda abarcando todas las columnas -->
+                <div class="flex flex-col items-center justify-center gap-2"> <!-- Alineación central de contenido -->
+                  <i data-lucide="file-x-2" class="w-10 h-10 text-slate-600"></i> <!-- Icono de archivo faltante -->
+                  <span>No hay datos disponibles en la tabla. Importe un archivo .docx para continuar.</span> <!-- Mensaje explicativo -->
+                </div> <!-- Fin de alineación central -->
+              </td> <!-- Fin de celda vacía -->
+            </tr> <!-- Fin de fila en blanco por defecto -->
+          </tbody> <!-- Fin del cuerpo de tabla -->
+        </table> <!-- Fin de la tabla -->
+      </div> <!-- Fin del contenedor scrollable -->
+    </div> <!-- Fin del contenedor principal de la tabla -->
+
+  </div> <!-- Fin del contenedor principal -->
+
+  <!-- Sección de scripts JavaScript para interactividad y procesamiento backend/frontend -->
+  <script>
+    // Variables globales de estado del sistema
+    let datosInformeProcesados = []; // Arreglo que almacenará todos los registros analizados desde el informe .docx
+    let indiceFilaSeleccionada = null; // Índice numérico de la fila actualmente activa por el usuario
+    let chartInstance = null; // Instancia global de Chart.js para permitir actualizaciones dinámicas
+
+    // Definición de umbrales/límites de referencia según la norma ISO 10816-7 para bombas hidráulicas
+    const UMBRALES_ISO_10816 = {
+      velocidadRPM: 3600.0, // Límite operacional de referencia máximo en RPM
+      temperatura: 60.0,     // Límite térmico aceptable en °C para bombas estándar
+      vibracionRMS: 4.5,     // Límite de alerta de aceleración RMS de vibración en m/s² (Zona C/D)
+      frecuenciaHz: 60.0     // Frecuencia eléctrica o de giro estándar de referencia
+    }; // Fin de objeto de umbrales ISO
+
+    // Inicialización al cargar completamente la página
+    window.addEventListener('DOMContentLoaded', () => { // Escucha el evento DOMContentLoaded
+      lucide.createIcons(); // Inicializa y renderiza los iconos de la librería Lucide
+      inicializarGraficaVacia(); // Instancia la estructura inicial de la gráfica en blanco
+    }); // Fin del listener DOMContentLoaded
+
+    // Función para crear e inicializar la gráfica comparativa con valores iniciales en cero
+    function inicializarGraficaVacia() {
+      const ctx = document.getElementById('graficaComparativaCanvas').getContext('2d'); // Obtiene el contexto 2D del Canvas
+      
+      chartInstance = new Chart(ctx, { // Instancia el objeto principal de la gráfica mediante Chart.js
+        type: 'bar', // Configura el tipo de gráfica a barras verticales
+        data: {
+          labels: ['Velocidad (RPM)', 'Temperatura (°C)', 'Vibración (m/s²)', 'Frecuencia (Hz)'], // Categorías comparativas del eje X
+          datasets: [ // Definición de conjuntos de datos a comparar
+            {
+              label: 'Valor Medido (Informe)', // Nombre de la serie de datos medidos del informe .docx
+              data: [0, 0, 0, 0], // Valores numéricos en cero por defecto hasta la selección
+              backgroundColor: 'rgba(59, 130, 246, 0.75)', // Color azul translúcido para barras medidas
+              borderColor: 'rgba(59, 130, 246, 1)', // Color del borde azul
+              borderWidth: 2, // Grosor del borde de las barras
+              borderRadius: 6 // Redondeado estético de la parte superior de las barras
+            },
+            {
+              label: 'Umbral / Límite ISO 10816-7', // Nombre de la serie de referencia normativa ISO
+              data: [ // Arreglo con los umbrales constantes ISO 10816-7
+                UMBRALES_ISO_10816.velocidadRPM, 
+                UMBRALES_ISO_10816.temperatura, 
+                UMBRALES_ISO_10816.vibracionRMS, 
+                UMBRALES_ISO_10816.frecuenciaHz
+              ],
+              backgroundColor: 'rgba(239, 68, 68, 0.75)', // Color rojo translúcido para límites ISO
+              borderColor: 'rgba(239, 68, 68, 1)', // Color del borde rojo
+              borderWidth: 2, // Grosor del borde
+              borderRadius: 6 // Redondeado superior
+            }
+          ]
+        },
+        options: { // Opciones avanzadas de renderizado e interactividad
+          responsive: true, // Hace la gráfica responsiva al tamaño del contenedor
+          maintainAspectRatio: false, // Permite adaptar la altura dinámicamente
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { family: 'Inter', size: 12 } } // Estilo de texto de la leyenda
+            },
+            tooltip: { // Configuración de cuadros emergentes de detalles
+              backgroundColor: '#0f172a', // Fondo oscuro para el tooltip
+              titleColor: '#f8fafc', // Color de título del tooltip
+              bodyColor: '#cbd5e1', // Color del texto del tooltip
+              borderColor: '#334155', // Borde del tooltip
+              borderWidth: 1 // Ancho del borde
+            }
+          },
+          scales: { // Configuración de los ejes X e Y
+            x: {
+              ticks: { color: '#94a3b8', font: { family: 'Inter' } }, // Color de texto en eje X
+              grid: { color: 'rgba(51, 65, 85, 0.4)' } // Líneas cuadrícula eje X
+            },
+            y: {
+              type: 'logarithmic', // Escala logarítmica para manejar diferencias de escala (3457 RPM vs 4.5 m/s2)
+              ticks: { color: '#94a3b8', font: { family: 'Inter' } }, // Color de texto en eje Y
+              grid: { color: 'rgba(51, 65, 85, 0.4)' } // Líneas cuadrícula eje Y
+            }
+          }
+        } // Fin de las opciones
+      }); // Fin de instanciación de Chart.js
+    } // Fin de inicializarGraficaVacia
+
+    // Función para procesar la subida del archivo .docx e importar sus tablas de datos
+    function procesarArchivoDocx(event) {
+      const archivo = event.target.files[0]; // Captura el archivo seleccionado desde el evento de cambio
+      if (!archivo) return; // Si no hay archivo válido, cancela la ejecución
+
+      const reader = new FileReader(); // Instancia FileReader para leer el archivo local en memoria
+      
+      reader.onload = function(e) { // Función callback que se ejecuta al terminar de leer el archivo
+        const arrayBuffer = e.target.result; // Obtiene el contenido binario como ArrayBuffer
+        
+        // Uso de Mammoth.js para convertir el documento .docx a código HTML estándar
+        mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+          .then(function(result) {
+            const htmlGenerado = result.value; // Obtiene la cadena con el HTML extraído del .docx
+            extraerDatosDeTablaHTML(htmlGenerado); // Llama a la función extractora pasando el HTML
+          })
+          .catch(function(err) { // Manejo de errores durante la conversión del .docx
+            console.error("Error al procesar el archivo .docx:", err); // Imprime el error en la consola
+            alert("Ocurrió un error al leer el archivo .docx. Verifique que sea un documento válido."); // Muestra alerta explicativa
+          });
+      }; // Fin de la función callback de lectura
+
+      reader.readAsArrayBuffer(archivo); // Ejecuta la lectura del archivo en formato binario ArrayBuffer
+    } // Fin de la función procesarArchivoDocx
+
+    // Función encargada de parsear la tabla HTML producida por Mammoth y estructurar los datos
+    function extraerDatosDeTablaHTML(htmlContent) {
+      const parser = new DOMParser(); // Instancia un nuevo parser DOM
+      const doc = parser.parseFromString(htmlContent, 'text/html'); // Convierte el HTML en un DOM ejecutable
+      const elementosTabla = doc.querySelectorAll('table'); // Busca todas las tablas contenidas en el documento
+
+      if (elementosTabla.length === 0) { // Valida si el documento contiene al menos una tabla
+        alert("No se encontró ninguna tabla de datos en el documento .docx subido."); // Notifica al usuario
+        return; // Detiene la ejecución
+      } // Fin de la validación
+
+      datosInformeProcesados = []; // Reinicia el arreglo global de datos del informe
+
+      // Iteración sobre las tablas encontradas en el documento
+      elementosTabla.forEach((tabla) => {
+        const filas = tabla.querySelectorAll('tr'); // Obtiene todas las filas (tr) de la tabla actual
+        
+        // Recorre las filas omitiendo la primera (que habitualmente contiene los encabezados)
+        for (let i = 1; i < filas.length; i++) {
+          const celdas = filas[i].querySelectorAll('td, th'); // Obtiene las celdas de la fila actual
+          
+          if (celdas.length >= 6) { // Verifica que la fila tenga al menos 6 columnas requeridas
+            const noDato = celdas[0].textContent.trim(); // Texto de la columna "No. dato"
+            const velocidadTexto = celdas[1].textContent.trim(); // Texto de la columna "Velocidad RPM"
+            const temperaturaTexto = celdas[2].textContent.trim(); // Texto de la columna "Temperatura"
+            const vibracionTexto = celdas[3].textContent.trim(); // Texto de la columna "Vibración RMS"
+            const frecuenciaTexto = celdas[4].textContent.trim(); // Texto de la columna "Frecuencia"
+            const zonaEvaluada = celdas[5].textContent.trim(); // Texto de la columna "Zona evaluada"
+
+            // Expresiones regulares para extraer únicamente los valores numéricos limpios para la gráfica
+            const numVelocidad = extraerNumero(velocidadTexto); // Extrae número flotante de RPM
+            const numTemperatura = extraerNumero(temperaturaTexto); // Extrae número flotante de °C
+            const numVibracion = extraerNumero(vibracionTexto); // Extrae número flotante de m/s²
+            const numFrecuencia = extraerNumero(frecuenciaTexto); // Extrae primer valor numérico de Hz
+
+            // Construye un objeto estructurado con los valores formateados y numéricos
+            datosInformeProcesados.push({
+              noDato: noDato || (i).toString(), // Asigna el número de dato o un índice
+              velocidadTexto: velocidadTexto || '0 rpm', // Texto legible de la velocidad
+              velocidadNum: numVelocidad, // Valor numérico flotante para gráfica
+              temperaturaTexto: temperaturaTexto || '0 °C', // Texto legible de temperatura
+              temperaturaNum: numTemperatura, // Valor numérico flotante
+              vibracionTexto: vibracionTexto || '0 m/s²', // Texto legible de vibración
+              vibracionNum: numVibracion, // Valor numérico flotante
+              frecuenciaTexto: frecuenciaTexto || '0 Hz', // Texto legible de frecuencia
+              frecuenciaNum: numFrecuencia, // Valor numérico flotante
+              zonaEvaluada: zonaEvaluada || 'No definida' // Clasificación de la zona evaluada
+            }); // Agrega el objeto al arreglo global
+          } // Fin de verificación de celdas suficiente
+        } // Fin del bucle de filas
+      }); // Fin del recorrido de tablas
+
+      if (datosInformeProcesados.length > 0) { // Si se extrajo exitosamente al menos 1 registro
+        ocultarBannerEstadoVacio(); // Oculta la alerta de bienvenida
+        poblarTablaInteractiva(); // Renderiza las filas dentro de la tabla HTML
+      } else {
+        alert("No se pudieron parsear filas válidas con los parámetros requeridos."); // Informa al usuario
+      }
+    } // Fin de extraerDatosDeTablaHTML
+
+    // Función auxiliar para extraer números decimales/flotantes limpia desde cadenas con texto
+    function extraerNumero(cadenaTexto) {
+      if (!cadenaTexto) return 0; // Retorna 0 si el texto está vacío
+      const coincidencia = cadenaTexto.replace(',', '.').match(/[-+]?[0-9]*\.?[0-9]+/); // Busca formato de número decimal
+      return coincidencia ? parseFloat(coincidencia[0]) : 0; // Convierte la coincidencia a float o retorna 0
+    } // Fin de la función extraerNumero
+
+    // Función para renderizar dinámicamente las filas de la tabla con los datos importados
+    function poblarTablaInteractiva() {
+      const cuerpoTabla = document.getElementById('tablaCuerpo'); // Obtiene la referencia al tbody de la tabla
+      const contador = document.getElementById('contadorRegistros'); // Obtiene la referencia del badge contador
+      
+      cuerpoTabla.innerHTML = ''; // Limpia el contenido previo de la tabla (remueve la fila en blanco por defecto)
+      
+      // Recorre cada uno de los registros del informe procesado
+      datosInformeProcesados.forEach((item, index) => {
+        const tr = document.createElement('tr'); // Crea un nuevo elemento de fila <tr>
+        
+        // Asigna clases CSS para estilizar la fila
+        tr.className = 'hover:bg-slate-700/50 transition cursor-pointer border-b border-slate-700/40'; // Estilos interactivos
+        
+        // Define la función al hacer clic para seleccionar esta fila específica
+        tr.onclick = () => seleccionarFilaTabla(index, tr); 
+
+        // Inyecta las celdas <td> con la información parseada del registro
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-semibold text-blue-400">#${item.noDato}</td> <!-- No. dato -->
+          <td class="py-3 px-4">${item.velocidadTexto}</td> <!-- Velocidad RPM -->
+          <td class="py-3 px-4">${item.temperaturaTexto}</td> <!-- Temperatura -->
+          <td class="py-3 px-4 font-mono">${item.vibracionTexto}</td> <!-- Vibración (m/s2) -->
+          <td class="py-3 px-4 text-xs">${item.frecuenciaTexto}</td> <!-- Frecuencia -->
+          <td class="py-3 px-4"> <!-- Celda con badge decorativo según la Zona Evaluada -->
+            <span class="px-2.5 py-1 text-xs font-bold rounded-full ${obtenerClaseColorZona(item.zonaEvaluada)}">
+              ${item.zonaEvaluada}
+            </span>
+          </td> <!-- Fin celda zona evaluada -->
+        `; // Fin del HTML de la fila
+
+        cuerpoTabla.appendChild(tr); // Agrega la fila al cuerpo de la tabla
+      }); // Fin del recorrido forEach
+
+      contador.textContent = `${datosInformeProcesados.length} registro(s) importado(s)`; // Actualiza el texto del contador
+      contador.className = 'text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/30'; // Cambia el color del badge
+    } // Fin de poblarTablaInteractiva
+
+    // Función ejecutada cuando el usuario hace clic sobre una fila de la tabla interactiva
+    function seleccionarFilaTabla(index, elementoTr) {
+      // Remueve el resaltado de la fila seleccionada previamente
+      const filasAnteriores = document.querySelectorAll('#tablaCuerpo tr'); // Obtiene todas las filas de la tabla
+      filasAnteriores.forEach(f => f.classList.remove('selected-row')); // Elimina la clase CSS de selección
+
+      // Aplica la clase de selección destacada a la fila cliqueada actual
+      elementoTr.classList.add('selected-row'); // Agrega la clase 'selected-row'
+      
+      indiceFilaSeleccionada = index; // Guarda el índice global seleccionado
+      const registro = datosInformeProcesados[index]; // Obtiene el objeto de datos del registro actual
+
+      actualizarTarjetasKPI(registro); // Actualiza los valores de la sección Resumen de Indicadores
+      actualizarGraficaComparativa(registro); // Actualiza las barras de la gráfica con los valores del registro
+    } // Fin de seleccionarFilaTabla
+
+    // Función para actualizar las tarjetas del Resumen de Indicadores Clave (KPIs)
+    function actualizarTarjetasKPI(item) {
+      document.getElementById('badgeFilaSeleccionada').textContent = `Dato #${item.noDato}`; // Actualiza la celda badge de selección
+      document.getElementById('badgeFilaSeleccionada').className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-600 text-white shadow'; // Cambia color del badge
+
+      // Actualiza los valores textuales en cada tarjeta individual
+      document.getElementById('kpiVelocidad').textContent = item.velocidadNum || item.velocidadTexto; // Asigna velocidad
+      document.getElementById('kpiVelocidad').className = 'text-xl md:text-2xl font-black text-sky-400'; // Resalta color
+
+      document.getElementById('kpiTemperatura').textContent = item.temperaturaNum || item.temperaturaTexto; // Asigna temperatura
+      document.getElementById('kpiTemperatura').className = 'text-xl md:text-2xl font-black text-amber-400'; // Resalta color
+
+      document.getElementById('kpiVibracion').textContent = item.vibracionNum || item.vibracionTexto; // Asigna vibración
+      document.getElementById('kpiVibracion').className = 'text-xl md:text-2xl font-black text-rose-400'; // Resalta color
+
+      document.getElementById('kpiFrecuencia').textContent = item.frecuenciaNum || item.frecuenciaTexto; // Asigna frecuencia
+      document.getElementById('kpiFrecuencia').className = 'text-xl md:text-2xl font-black text-emerald-400'; // Resalta color
+
+      document.getElementById('kpiHelpText').textContent = `Mostrando parámetros del Registro #${item.noDato} (${item.zonaEvaluada})`; // Actualiza pie de texto KPI
+    } // Fin de actualizarTarjetasKPI
+
+    // Función para actualizar la Gráfica de Barras Comparativas
+    function actualizarGraficaComparativa(item) {
+      if (!chartInstance) return; // Si la gráfica no está instanciada, interrumpe la función
+
+      // Oculta la capa de estado vacío permitiendo ver la gráfica interactiva completa
+      const overlay = document.getElementById('overlayGraficaVacia'); // Referencia al overlay
+      overlay.style.opacity = '0'; // Cambia opacidad a cero
+      setTimeout(() => { overlay.style.display = 'none'; }, 300); // Oculta del flujo tras la transición
+
+      // Actualiza la serie dataset[0] que representa el "Valor Medido" con los números extraídos
+      chartInstance.data.datasets[0].data = [
+        item.velocidadNum,  // Valor numérico de velocidad (RPM)
+        item.temperaturaNum, // Valor numérico de temperatura (°C)
+        item.vibracionNum,   // Valor numérico de vibración (m/s²)
+        item.frecuenciaNum   // Valor numérico de frecuencia (Hz)
+      ]; // Cierra el arreglo de datos
+
+      chartInstance.data.datasets[0].label = `Valor Medido (Dato #${item.noDato})`; // Actualiza la leyenda con la fila elegida
+      chartInstance.update(); // Dispara la reanimación y renderizado con Chart.js
+    } // Fin de actualizarGraficaComparativa
+
+    // Función auxiliar para obtener colores de badges según la severidad de la Zona Evaluada
+    function obtenerClaseColorZona(zonaTexto) {
+      const z = (zonaTexto || '').toUpperCase(); // Normaliza el texto a mayúsculas
+      if (z.includes('A') || z.includes('NORMAL') || z.includes('ACEPTABLE')) { // Zonas de operabilidad segura
+        return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'; // Badge verde
+      } else if (z.includes('B') || z.includes('ALERTA')) { // Zonas de precaución
+        return 'bg-sky-500/20 text-sky-300 border border-sky-500/30'; // Badge azul
+      } else if (z.includes('C') || z.includes('PRECAUCIÓN')) { // Zonas de advertencia
+        return 'bg-amber-500/20 text-amber-300 border border-amber-500/30'; // Badge amarillo/ámbar
+      } else if (z.includes('D') || z.includes('FUERA') || z.includes('CRÍTICO')) { // Zonas críticas fuera de rango
+        return 'bg-rose-500/20 text-rose-300 border border-rose-500/30'; // Badge rojo
+      } // Fin de comparaciones de zona
+      return 'bg-slate-700 text-slate-300'; // Clase neutra por defecto si no coincide
+    } // Fin de obtenerClaseColorZona
+
+    // Oculta el mensaje informativo de estado inicial en blanco
+    function ocultarBannerEstadoVacio() {
+      const banner = document.getElementById('bannerEstadoVacio'); // Obtiene la referencia del banner
+      if (banner) { // Si existe el banner
+        banner.style.display = 'none'; // Lo oculta del documento HTML
+      } // Fin si
+    } // Fin de ocultarBannerEstadoVacio
+
+  </script> <!-- Fin de los scripts JavaScript backend/frontend -->
+</body> <!-- Fin del cuerpo HTML -->
+</html> <!-- Fin de la estructura del documento HTML -->
